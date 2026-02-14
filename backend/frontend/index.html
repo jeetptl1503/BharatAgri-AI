@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="BharatAgri AI - Intelligent Crop & Yield Advisory System for Indian Agriculture. Get AI-powered crop recommendations, yield predictions, and risk analysis.">
+    <title>BharatAgri AI – Intelligent Crop & Yield Advisory System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Gurmukhi:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-logo" onclick="navigate('home')">
+                <span class="logo-icon">🌾</span>
+                <span class="logo-text">BharatAgri <span class="logo-accent">AI</span></span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="#" onclick="navigate('home')" class="nav-link active" data-page="home">Home</a>
+                <a href="#" onclick="navigate('recommend')" class="nav-link" data-page="recommend">Advisory</a>
+                <a href="#" onclick="navigate('dashboard')" class="nav-link" data-page="dashboard">Dashboard</a>
+                <a href="#" onclick="navigate('chatbot')" class="nav-link" data-page="chatbot">Chatbot</a>
+            </div>
+            <div class="nav-actions">
+                <div class="lang-selector">
+                    <select id="langSelect" onchange="changeLanguage(this.value)">
+                        <option value="en">English</option>
+                        <option value="hi">हिन्दी</option>
+                        <option value="pa">ਪੰਜਾਬੀ</option>
+                        <option value="mr">मराठी</option>
+                        <option value="te">తెలుగు</option>
+                        <option value="ta">தமிழ்</option>
+                        <option value="bn">বাংলা</option>
+                        <option value="gu">ગુજરાતી</option>
+                    </select>
+                </div>
+                <div id="authButtons">
+                    <button class="btn btn-outline btn-sm" onclick="navigate('login')" id="loginBtn">Login</button>
+                    <button class="btn btn-primary btn-sm" onclick="navigate('register')" id="registerBtn">Sign
+                        Up</button>
+                </div>
+                <div id="userMenu" class="user-menu hidden">
+                    <button class="btn btn-ghost btn-sm" onclick="navigate('profile')" id="userNameBtn">
+                        <span class="avatar-sm">👤</span>
+                        <span id="userNameText">User</span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </div>
+            <button class="mobile-toggle" onclick="toggleMobileMenu()">☰</button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="app">
+        <!-- Pages are rendered here by the router -->
+    </main>
+
+    <!-- Background Illustrations -->
+    <div class="bg-illustrations">
+        <svg class="bg-illust illust-1" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M100 20 C100 20 80 60 80 100 C80 140 100 180 100 180" stroke="#2d7a3a" stroke-width="1.5"
+                stroke-linecap="round" opacity="0.06" />
+            <path d="M100 60 C100 60 60 50 50 40" stroke="#2d7a3a" stroke-width="1.5" stroke-linecap="round"
+                opacity="0.06" />
+            <path d="M100 60 C100 60 140 50 150 40" stroke="#2d7a3a" stroke-width="1.5" stroke-linecap="round"
+                opacity="0.06" />
+            <path d="M100 100 C100 100 55 85 40 80" stroke="#2d7a3a" stroke-width="1.5" stroke-linecap="round"
+                opacity="0.06" />
+            <path d="M100 100 C100 100 145 85 160 80" stroke="#2d7a3a" stroke-width="1.5" stroke-linecap="round"
+                opacity="0.06" />
+            <ellipse cx="50" cy="40" rx="18" ry="10" stroke="#2d7a3a" stroke-width="1" opacity="0.05" fill="#2d7a3a"
+                fill-opacity="0.02" />
+            <ellipse cx="150" cy="40" rx="18" ry="10" stroke="#2d7a3a" stroke-width="1" opacity="0.05" fill="#2d7a3a"
+                fill-opacity="0.02" />
+            <ellipse cx="40" cy="80" rx="18" ry="10" stroke="#2d7a3a" stroke-width="1" opacity="0.05" fill="#2d7a3a"
+                fill-opacity="0.02" />
+            <ellipse cx="160" cy="80" rx="18" ry="10" stroke="#2d7a3a" stroke-width="1" opacity="0.05" fill="#2d7a3a"
+                fill-opacity="0.02" />
+        </svg>
+        <svg class="bg-illust illust-2" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M30 180 Q60 120 40 80 Q20 40 60 20" stroke="#c4943a" stroke-width="1.2" stroke-linecap="round"
+                opacity="0.05" />
+            <path d="M60 20 Q80 60 100 40" stroke="#c4943a" stroke-width="1.2" stroke-linecap="round" opacity="0.05" />
+            <circle cx="60" cy="20" r="12" stroke="#c4943a" stroke-width="1" opacity="0.04" fill="#c4943a"
+                fill-opacity="0.02" />
+            <path d="M170 180 Q140 140 160 100 Q180 60 150 30" stroke="#c4943a" stroke-width="1.2"
+                stroke-linecap="round" opacity="0.05" />
+        </svg>
+        <svg class="bg-illust illust-3" viewBox="0 0 300 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 80 Q50 50 100 70 Q150 90 200 60 Q250 30 300 50" stroke="#3a7a9c" stroke-width="1"
+                stroke-linecap="round" opacity="0.04" />
+            <path d="M0 90 Q75 60 150 80 Q225 100 300 70" stroke="#3a7a9c" stroke-width="0.8" stroke-linecap="round"
+                opacity="0.03" />
+        </svg>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <span id="toastMsg"></span>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p id="loadingText" data-i18n="loading">Analyzing your data...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/i18n.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/pages.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
