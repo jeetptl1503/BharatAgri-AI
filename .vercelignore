@@ -1,0 +1,11 @@
+.venv
+__pycache__
+*.pyc
+.env
+bharatagri.db
+backend/frontend
+backend/trained_models
+backend/app/data/*.csv
+.git
+*.db
+.gemini

@@ -1,92 +1,69 @@
 """
-ML Predictor module for BharatAgri AI.
-Loads trained models and runs predictions with explainability.
+Rule-based Predictor for BharatAgri AI (Vercel-compatible).
+Uses CROP_CONDITIONS data for predictions — zero heavy ML dependencies.
 """
-import os
-import numpy as np
-import joblib
+import math
+import random
 from app.data.india_data import CROP_CONDITIONS, CROP_AVG_YIELDS, STATES_DATA, SOIL_CHARACTERISTICS
 
-MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "trained_models")
 
-# Cached models
-_models = {}
+def _score_crop(crop, conditions, n, p, k, temp, humidity, ph, rainfall, soil_type, state, season):
+    """Score how well input conditions match a crop's ideal range. Returns 0-100."""
+    score = 0
+    max_score = 0
 
-
-def _load_model(name):
-    if name not in _models:
-        path = os.path.join(MODEL_DIR, f"{name}.joblib")
-        if os.path.exists(path):
-            _models[name] = joblib.load(path)
+    def range_score(val, low, high, weight=1.0):
+        """Score value within range: 100 if inside, decays outside."""
+        nonlocal score, max_score
+        max_score += weight * 100
+        if low <= val <= high:
+            score += weight * 100
         else:
-            raise FileNotFoundError(f"Model {name} not found at {path}. Run train_models.py first.")
-    return _models[name]
+            mid = (low + high) / 2
+            span = (high - low) / 2 if high != low else 1
+            dist = abs(val - mid) / span
+            score += weight * max(0, 100 - dist * 25)
+
+    # Core agro parameters
+    if "temp" in conditions:
+        range_score(temp, *conditions["temp"], weight=2.0)
+    if "rainfall" in conditions:
+        range_score(rainfall, *conditions["rainfall"], weight=2.0)
+    if "ph" in conditions:
+        range_score(ph, *conditions["ph"], weight=1.5)
+    if "humidity" in conditions:
+        range_score(humidity, *conditions["humidity"], weight=1.0)
+    if "n" in conditions:
+        range_score(n, *conditions["n"], weight=1.2)
+    if "p" in conditions:
+        range_score(p, *conditions["p"], weight=1.2)
+    if "k" in conditions:
+        range_score(k, *conditions["k"], weight=1.2)
+
+    # Soil type match (big bonus)
+    max_score += 200
+    if "soil" in conditions and soil_type in conditions["soil"]:
+        score += 200
+
+    # Season match (big bonus)
+    max_score += 200
+    if "season" in conditions and season in conditions["season"]:
+        score += 200
+
+    # State crop bonus
+    state_info = STATES_DATA.get(state, {})
+    max_score += 100
+    if crop in state_info.get("major_crops", []):
+        score += 100
+
+    return (score / max_score * 100) if max_score > 0 else 50
 
 
-def predict_crop(n, p, k, temperature, humidity, ph, rainfall, soil_type, state, season):
-    """
-    Predict top 3 recommended crops with probabilities and explanations.
-    """
-    model = _load_model("crop_model")
-    soil_enc = _load_model("soil_encoder")
-    state_enc = _load_model("state_encoder")
-    season_enc = _load_model("season_encoder")
-    crop_enc = _load_model("crop_encoder")
-    feature_names = _load_model("feature_names")
-
-    # Handle unknown labels
-    try:
-        soil_encoded = soil_enc.transform([soil_type])[0]
-    except ValueError:
-        soil_encoded = 0
-    try:
-        state_encoded = state_enc.transform([state])[0]
-    except ValueError:
-        state_encoded = 0
-    try:
-        season_encoded = season_enc.transform([season])[0]
-    except ValueError:
-        season_encoded = 0
-
-    features = np.array([[n, p, k, temperature, humidity, ph, rainfall,
-                           soil_encoded, state_encoded, season_encoded]])
-
-    # Get probabilities for all crops
-    probabilities = model.predict_proba(features)[0]
-    top_indices = np.argsort(probabilities)[::-1][:3]
-
-    results = []
-    for idx in top_indices:
-        crop_name = crop_enc.inverse_transform([idx])[0]
-        prob = probabilities[idx]
-        explanation = _generate_crop_explanation(
-            crop_name, n, p, k, temperature, humidity, ph, rainfall,
-            soil_type, state, season, model.feature_importances_, feature_names
-        )
-        results.append({
-            "crop": crop_name,
-            "probability": round(float(prob) * 100, 1),
-            "explanation": explanation
-        })
-
-    # Feature importance
-    importance_dict = {}
-    for fname, importance in zip(feature_names, model.feature_importances_):
-        importance_dict[fname] = round(float(importance) * 100, 1)
-
-    return {
-        "recommendations": results,
-        "feature_importance": importance_dict
-    }
-
-
-def _generate_crop_explanation(crop, n, p, k, temp, humidity, ph, rainfall,
-                                soil_type, state, season, importances, feature_names):
+def _generate_crop_explanation(crop, n, p, k, temp, humidity, ph, rainfall, soil_type, state, season):
     """Generate human-readable explanation for crop recommendation."""
     conditions = CROP_CONDITIONS.get(crop, {})
     reasons = []
 
-    # Check which conditions match well
     if conditions:
         if conditions.get("temp") and conditions["temp"][0] <= temp <= conditions["temp"][1]:
             reasons.append(f"temperature ({temp:.0f}°C) falls within optimal range")
@@ -98,8 +75,6 @@ def _generate_crop_explanation(crop, n, p, k, temp, humidity, ph, rainfall,
             reasons.append(f"{soil_type} soil is well-suited")
         if conditions.get("season") and season in conditions["season"]:
             reasons.append(f"{season} season is ideal for cultivation")
-
-        # NPK analysis
         n_range = conditions.get("n", (0, 999))
         if n_range[0] <= n <= n_range[1]:
             reasons.append(f"nitrogen level ({n:.0f}) is optimal")
@@ -108,63 +83,106 @@ def _generate_crop_explanation(crop, n, p, k, temp, humidity, ph, rainfall,
         reasons.append("overall soil and climate conditions are compatible")
 
     state_info = STATES_DATA.get(state, {})
-    major = state_info.get("major_crops", [])
-    if crop in major:
+    if crop in state_info.get("major_crops", []):
         reasons.append(f"it is a major crop grown in {state}")
 
-    explanation = f"{crop} is recommended because " + ", ".join(reasons[:4]) + "."
-    return explanation
+    return f"{crop} is recommended because " + ", ".join(reasons[:4]) + "."
+
+
+def predict_crop(n, p, k, temperature, humidity, ph, rainfall, soil_type, state, season):
+    """Predict top 3 recommended crops with scores and explanations."""
+    scores = {}
+    for crop, conditions in CROP_CONDITIONS.items():
+        scores[crop] = _score_crop(
+            crop, conditions, n, p, k, temperature, humidity, ph, rainfall,
+            soil_type, state, season
+        )
+
+    # Sort by score descending, take top 3
+    ranked = sorted(scores.items(), key=lambda x: -x[1])[:3]
+
+    # Normalize top scores to probabilities
+    total = sum(s for _, s in ranked) or 1
+    results = []
+    for crop, raw_score in ranked:
+        explanation = _generate_crop_explanation(
+            crop, n, p, k, temperature, humidity, ph, rainfall,
+            soil_type, state, season
+        )
+        results.append({
+            "crop": crop,
+            "probability": round(raw_score / total * 100, 1),
+            "explanation": explanation
+        })
+
+    # Feature importance (static, based on agronomic significance)
+    feature_importance = {
+        "Season": 22.0, "Temperature": 15.0, "Rainfall": 15.0,
+        "Soil Type": 14.0, "pH Level": 10.0, "Nitrogen (N)": 8.0,
+        "Phosphorus (P)": 6.0, "Potassium (K)": 6.0,
+        "Humidity": 5.0, "State": 4.0
+    }
+
+    return {
+        "recommendations": results,
+        "feature_importance": feature_importance
+    }
 
 
 def predict_yield(state, district, crop, season, area, rainfall, temperature):
-    """Predict crop yield for given conditions."""
-    model = _load_model("yield_model")
-    state_enc = _load_model("yield_state_encoder")
-    crop_enc = _load_model("yield_crop_encoder")
-    season_enc = _load_model("yield_season_encoder")
-    district_enc = _load_model("yield_district_encoder")
+    """Predict crop yield using rule-based estimation from avg yields + conditions."""
+    base_yield = CROP_AVG_YIELDS.get(crop, 2.0)
+    conditions = CROP_CONDITIONS.get(crop, {})
+    multiplier = 1.0
 
-    try:
-        state_encoded = state_enc.transform([state])[0]
-    except ValueError:
-        state_encoded = 0
-    try:
-        crop_encoded = crop_enc.transform([crop])[0]
-    except ValueError:
-        crop_encoded = 0
-    try:
-        season_encoded = season_enc.transform([season])[0]
-    except ValueError:
-        season_encoded = 0
-    try:
-        district_encoded = district_enc.transform([district])[0]
-    except ValueError:
-        district_encoded = 0
+    # Adjust by temperature fit
+    if "temp" in conditions:
+        t_low, t_high = conditions["temp"]
+        t_mid = (t_low + t_high) / 2
+        if t_low <= temperature <= t_high:
+            closeness = 1 - abs(temperature - t_mid) / ((t_high - t_low) / 2 + 1)
+            multiplier *= 0.9 + 0.2 * closeness
+        else:
+            multiplier *= 0.7
 
-    features = np.array([[state_encoded, district_encoded, crop_encoded,
-                           season_encoded, area, rainfall, temperature]])
+    # Adjust by rainfall fit
+    if "rainfall" in conditions:
+        r_low, r_high = conditions["rainfall"]
+        if r_low <= rainfall <= r_high:
+            multiplier *= 1.05
+        else:
+            multiplier *= 0.8
 
-    predicted_yield = model.predict(features)[0]
-    predicted_yield = max(0.1, predicted_yield)
+    # Season match
+    if "season" in conditions and season in conditions["season"]:
+        multiplier *= 1.05
+    else:
+        multiplier *= 0.85
 
-    state_avg = CROP_AVG_YIELDS.get(crop, 2.0)
+    # State major crop boost
+    state_info = STATES_DATA.get(state, {})
+    if crop in state_info.get("major_crops", []):
+        multiplier *= 1.1
+
+    # Small random variation for realism
+    random.seed(hash(f"{state}{district}{crop}{season}{area}"))
+    multiplier *= random.uniform(0.95, 1.05)
+
+    predicted_yield = max(0.1, base_yield * multiplier)
     total_production = predicted_yield * area
-    yield_diff_percent = ((predicted_yield - state_avg) / state_avg) * 100
+    yield_diff = ((predicted_yield - base_yield) / base_yield) * 100
 
     return {
-        "predicted_yield": round(float(predicted_yield), 2),
-        "total_production": round(float(total_production), 2),
-        "state_average_yield": round(float(state_avg), 2),
-        "yield_difference_percent": round(float(yield_diff_percent), 1),
+        "predicted_yield": round(predicted_yield, 2),
+        "total_production": round(total_production, 2),
+        "state_average_yield": round(base_yield, 2),
+        "yield_difference_percent": round(yield_diff, 1),
         "unit": "tons/hectare"
     }
 
 
 def calculate_risk(n, p, k, ph, temperature, humidity, rainfall, soil_type, state, season, crop):
-    """
-    Calculate risk score using rule + ML hybrid approach.
-    Returns risk level (Low/Moderate/High) with explanation.
-    """
+    """Calculate risk score using rule-based approach."""
     risk_score = 0
     risk_factors = []
 
@@ -231,7 +249,6 @@ def calculate_risk(n, p, k, ph, temperature, humidity, rainfall, soil_type, stat
         risk_score += 5
         risk_factors.append(f"{crop} is not among the major crops of {state}")
 
-    # Classify risk
     risk_score = min(100, risk_score)
     if risk_score <= 25:
         risk_level = "Low"

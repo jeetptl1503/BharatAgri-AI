@@ -1,6 +1,7 @@
 """
 BharatAgri AI — FastAPI Application Entry Point
-Serves both API and frontend static files.
+API-only mode for Vercel serverless deployment.
+Also serves frontend locally when not on Vercel.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,8 @@ from fastapi.responses import FileResponse
 from app.models.database import create_tables
 from app.routes import auth, predict, chatbot, reference
 import os
+
+IS_VERCEL = os.environ.get("VERCEL", False)
 
 app = FastAPI(
     title="BharatAgri AI",
@@ -27,7 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers FIRST (before catch-all)
+# Include API routers
 app.include_router(auth.router)
 app.include_router(predict.router)
 app.include_router(chatbot.router)
@@ -41,27 +44,26 @@ def startup():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    return {"status": "healthy", "platform": "vercel" if IS_VERCEL else "local"}
 
 
-# Serve static frontend LAST
-FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+# Serve static frontend only when running locally (not on Vercel)
+if not IS_VERCEL:
+    FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 
-if os.path.exists(FRONTEND_DIR):
-    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+    if os.path.exists(FRONTEND_DIR):
+        app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
-    @app.get("/")
-    async def serve_index():
-        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+        @app.get("/")
+        async def serve_index():
+            return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
 
-    @app.get("/{path:path}")
-    async def serve_frontend(path: str):
-        # Don't catch API or docs routes
-        if path.startswith("api/") or path in ("docs", "redoc", "openapi.json", "health"):
-            return None
-        # Try to serve the file directly
-        file_path = os.path.join(FRONTEND_DIR, path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return FileResponse(file_path)
-        # Fall back to index.html for SPA routing
-        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+        @app.get("/{path:path}")
+        async def serve_frontend(path: str):
+            if path.startswith("api/") or path in ("docs", "redoc", "openapi.json", "health"):
+                return None
+            file_path = os.path.join(FRONTEND_DIR, path)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return FileResponse(file_path)
+            return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
