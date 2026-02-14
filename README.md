@@ -82,3 +82,4 @@ Visit **http://localhost:8000/docs** for interactive Swagger documentation.
 - **Frontend:** Vanilla HTML/CSS/JS SPA
 - **ML:** RandomForestClassifier, GradientBoostingRegressor
 - **Auth:** JWT + bcrypt
+# BharatAgri-AI
