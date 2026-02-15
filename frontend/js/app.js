@@ -12,13 +12,15 @@ const pageRenderers = {
     recommend: renderRecommendPage,
     dashboard: renderDashboardPage,
     chatbot: renderChatbotPage,
-    profile: renderProfilePage
+    profile: renderProfilePage,
+    admin: renderAdminPage
 };
 
 const pageInitializers = {
     register: initRegisterPage,
     recommend: initRecommendPage,
-    dashboard: initDashboardPage
+    dashboard: initDashboardPage,
+    admin: initAdminPage
 };
 
 function navigate(page) {

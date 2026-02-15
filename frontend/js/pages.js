@@ -730,3 +730,188 @@ function toggleHelp(id) {
 function toggleMobileMenu() {
     document.getElementById('navLinks').classList.toggle('show');
 }
+
+// ======================== ADMIN PAGE ========================
+function renderAdminPage() {
+    return `
+    <div class="page fade-in">
+        <h2 class="section-title">🛡️ Admin Dashboard</h2>
+        <p class="section-subtitle">Developer view — user signups, predictions, and chat activity.</p>
+
+        <div class="card" style="margin-bottom:24px" id="adminKeyCard">
+            <h3 style="margin-bottom:12px">🔑 Admin Authentication</h3>
+            <div class="form-row" style="align-items:flex-end">
+                <div class="form-group" style="flex:1">
+                    <label class="form-label">Admin Secret Key</label>
+                    <input type="password" id="adminKeyInput" class="form-input" placeholder="Enter admin secret key...">
+                </div>
+                <div class="form-group" style="flex:0">
+                    <button class="btn btn-primary" onclick="authenticateAdmin()">Unlock</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="adminContent" style="display:none">
+            <!-- Stats Cards -->
+            <div class="stats-strip fade-in" style="margin-bottom:24px" id="adminStats">
+                <div class="stat-item">
+                    <div class="stat-number" id="statUsers">-</div>
+                    <div class="stat-label">Total Users</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="statPredictions">-</div>
+                    <div class="stat-label">Total Predictions</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="statChats">-</div>
+                    <div class="stat-label">Chat Messages</div>
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            <div class="card" style="margin-bottom:24px">
+                <h3 style="margin-bottom:16px">👥 Registered Users</h3>
+                <div style="overflow-x:auto" id="adminUsersTable">Loading...</div>
+            </div>
+
+            <!-- Predictions Table -->
+            <div class="card" style="margin-bottom:24px">
+                <h3 style="margin-bottom:16px">📊 All Predictions</h3>
+                <div style="overflow-x:auto" id="adminPredTable">Loading...</div>
+            </div>
+
+            <!-- Chats Table -->
+            <div class="card" style="margin-bottom:24px">
+                <h3 style="margin-bottom:16px">💬 Chat History</h3>
+                <div style="overflow-x:auto" id="adminChatsTable">Loading...</div>
+            </div>
+        </div>
+    </div>
+    `;
+}
+
+function initAdminPage() {
+    // Auto-unlock if key already stored
+    const savedKey = sessionStorage.getItem('bharatagri_admin_key');
+    if (savedKey) {
+        document.getElementById('adminKeyInput').value = savedKey;
+        authenticateAdmin();
+    }
+}
+
+async function authenticateAdmin() {
+    const key = document.getElementById('adminKeyInput').value.trim();
+    if (!key) { showToast('Please enter the admin key', 'error'); return; }
+    sessionStorage.setItem('bharatagri_admin_key', key);
+
+    try {
+        const stats = await apiAdminStats();
+        // Success — show admin content
+        document.getElementById('adminKeyCard').style.display = 'none';
+        document.getElementById('adminContent').style.display = 'block';
+
+        // Populate stats
+        document.getElementById('statUsers').textContent = stats.total_users;
+        document.getElementById('statPredictions').textContent = stats.total_predictions;
+        document.getElementById('statChats').textContent = stats.total_chats;
+
+        // Load all data
+        loadAdminUsers();
+        loadAdminPredictions();
+        loadAdminChats();
+    } catch (e) {
+        sessionStorage.removeItem('bharatagri_admin_key');
+        showToast('Invalid admin key', 'error');
+    }
+}
+
+async function loadAdminUsers() {
+    try {
+        const users = await apiAdminUsers();
+        const el = document.getElementById('adminUsersTable');
+        if (!users.length) { el.innerHTML = '<p class="text-muted">No users yet.</p>'; return; }
+        el.innerHTML = `
+        <table class="history-table">
+            <thead><tr>
+                <th>#</th><th>Name</th><th>Email</th><th>State</th><th>Lang</th><th>Predictions</th><th>Joined</th>
+            </tr></thead>
+            <tbody>
+                ${users.map((u, i) => `<tr>
+                    <td>${i + 1}</td>
+                    <td><strong>${u.name}</strong></td>
+                    <td>${u.email}</td>
+                    <td>${u.state || '-'}</td>
+                    <td>${u.language || 'en'}</td>
+                    <td>${u.prediction_count}</td>
+                    <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : '-'}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+    } catch (e) {
+        document.getElementById('adminUsersTable').innerHTML = '<p class="text-muted">Failed to load users.</p>';
+    }
+}
+
+async function loadAdminPredictions() {
+    try {
+        const preds = await apiAdminPredictions();
+        const el = document.getElementById('adminPredTable');
+        if (!preds.length) { el.innerHTML = '<p class="text-muted">No predictions yet.</p>'; return; }
+        el.innerHTML = `
+        <table class="history-table">
+            <thead><tr>
+                <th>User</th><th>Type</th><th>State</th><th>Top Crop / Result</th><th>Date</th>
+            </tr></thead>
+            <tbody>
+                ${preds.slice(0, 100).map(p => {
+            let result = '-';
+            if (p.prediction_type === 'full' && p.result_data?.crop_recommendations?.recommendations?.[0]) {
+                const r = p.result_data.crop_recommendations.recommendations;
+                result = r.map(c => c.crop + ' (' + c.probability + '%)').join(', ');
+            } else if (p.prediction_type === 'crop' && p.result_data?.recommendations?.[0]) {
+                result = p.result_data.recommendations[0].crop;
+            } else if (p.prediction_type === 'yield' && p.result_data?.predicted_yield) {
+                result = p.result_data.predicted_yield + ' t/ha';
+            } else if (p.prediction_type === 'risk') {
+                result = (p.result_data?.risk_level || '-') + ' (' + (p.result_data?.risk_score || 0) + '/100)';
+            }
+            return `<tr>
+                        <td><strong>${p.user_name}</strong><br><span style="font-size:0.75rem;color:var(--text-muted)">${p.user_email}</span></td>
+                        <td>${p.prediction_type}</td>
+                        <td>${p.state || '-'}</td>
+                        <td style="max-width:300px">${result}</td>
+                        <td>${p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</td>
+                    </tr>`;
+        }).join('')}
+            </tbody>
+        </table>`;
+    } catch (e) {
+        document.getElementById('adminPredTable').innerHTML = '<p class="text-muted">Failed to load predictions.</p>';
+    }
+}
+
+async function loadAdminChats() {
+    try {
+        const chats = await apiAdminChats();
+        const el = document.getElementById('adminChatsTable');
+        if (!chats.length) { el.innerHTML = '<p class="text-muted">No chats yet.</p>'; return; }
+        el.innerHTML = `
+        <table class="history-table">
+            <thead><tr>
+                <th>User</th><th>Message</th><th>Response</th><th>Lang</th><th>Date</th>
+            </tr></thead>
+            <tbody>
+                ${chats.slice(0, 100).map(c => `<tr>
+                    <td><strong>${c.user_name}</strong></td>
+                    <td style="max-width:200px">${c.message}</td>
+                    <td style="max-width:300px; font-size:0.82rem">${(c.response || '').substring(0, 120)}${(c.response || '').length > 120 ? '...' : ''}</td>
+                    <td>${c.language}</td>
+                    <td>${c.created_at ? new Date(c.created_at).toLocaleString() : '-'}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+    } catch (e) {
+        document.getElementById('adminChatsTable').innerHTML = '<p class="text-muted">Failed to load chats.</p>';
+    }
+}
+

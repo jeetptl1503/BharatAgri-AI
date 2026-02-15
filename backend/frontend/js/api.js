@@ -112,3 +112,20 @@ function showLoading(text) {
 function hideLoading() {
     document.getElementById('loadingOverlay').classList.add('hidden');
 }
+
+// Admin API (uses X-Admin-Key header)
+async function adminCall(endpoint) {
+    const key = sessionStorage.getItem('bharatagri_admin_key');
+    if (!key) throw new Error('No admin key');
+    const resp = await fetch(`${API_BASE}${endpoint}`, {
+        headers: { 'X-Admin-Key': key }
+    });
+    if (resp.status === 403) throw new Error('Invalid admin key');
+    if (!resp.ok) throw new Error('Request failed');
+    return resp.json();
+}
+
+async function apiAdminStats() { return adminCall('/api/admin/stats'); }
+async function apiAdminUsers() { return adminCall('/api/admin/users'); }
+async function apiAdminPredictions() { return adminCall('/api/admin/predictions'); }
+async function apiAdminChats() { return adminCall('/api/admin/chats'); }
