@@ -19,7 +19,7 @@
 
 BharatAgri AI is a full-stack intelligent advisory system that helps Indian farmers make data-driven decisions. It provides **crop recommendations**, **yield predictions**, and **risk analysis** based on soil nutrients, climate data, and regional conditions — covering **16 states**, **25+ crops**, and **8 Indian languages**.
 
-> 🟢 **Try it live:** [https://bharat-agri-ai.vercel.app] https://bharatagri-ai.vercel.app/
+> 🟢 **Try it live**: https://bharatagri-ai.vercel.app/
 
 ---
 
